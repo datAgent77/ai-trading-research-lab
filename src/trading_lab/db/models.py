@@ -181,6 +181,17 @@ class PositionsSnapshot(Base):
     strategy_run_id: Mapped[int | None] = mapped_column(ForeignKey("strategy_runs.id"))
 
 
+class KillSwitchRecord(Base):
+    """Singleton kill-switch row (Telegram manual trip / reset + live-loop polling sync)."""
+
+    __tablename__ = "kill_switch_record"
+
+    singleton_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tripped: Mapped[bool] = mapped_column(nullable=False, default=False)
+    reason: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ClaudeCall(Base):
     """Audit row for Claude API usage."""
 

@@ -6,6 +6,7 @@ from trading_lab.db.models import (
     ClaudeCall,
     ClaudeCallPurpose,
     Fill,
+    KillSwitchRecord,
     Order,
     OrderSide,
     OrderStatus,
@@ -14,7 +15,12 @@ from trading_lab.db.models import (
     StrategyRun,
     StrategyRunStatus,
 )
-from trading_lab.db.session import create_session_factory, session_scope
+from trading_lab.db.session import (
+    create_session_factory,
+    ensure_schema,
+    managed_session,
+    session_scope,
+)
 
 __all__ = [
     "BacktestResult",
@@ -22,6 +28,7 @@ __all__ = [
     "ClaudeCall",
     "ClaudeCallPurpose",
     "Fill",
+    "KillSwitchRecord",
     "Order",
     "OrderSide",
     "OrderStatus",
@@ -30,5 +37,7 @@ __all__ = [
     "StrategyRun",
     "StrategyRunStatus",
     "create_session_factory",
+    "ensure_schema",
+    "managed_session",
     "session_scope",
 ]

@@ -16,6 +16,7 @@ class RecordingFakeIB:
         self.placed: list[tuple[object, MarketOrder]] = []
         self._portfolio_items: list[object] = []
         self._position_items: list[object] = []
+        self.net_liquidation: str = "100000"
 
     # --- IB API subset -------------------------------------------------
 
@@ -48,6 +49,20 @@ class RecordingFakeIB:
     def positions(self, account: str = "") -> list[object]:
         _ = account
         return list(self._position_items)
+
+    def accountSummary(self, account: str = "") -> list[object]:
+        """Minimal tags for NAV reads in ``LiveLoop``."""
+        from types import SimpleNamespace
+
+        acct = account or (self._accounts[0] if self._accounts else "")
+        return [
+            SimpleNamespace(
+                tag="NetLiquidation",
+                account=acct,
+                value=self.net_liquidation,
+                currency="USD",
+            ),
+        ]
 
     # --- Test hooks ----------------------------------------------------
 

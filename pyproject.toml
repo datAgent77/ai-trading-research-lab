@@ -10,8 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.102.0",
+    "apscheduler>=3.11.2",
     "ib-insync>=0.9.86",
     "pandas>=2.2",
+    "python-telegram-bot>=21.0",
     "polygon-api-client>=1.16.3",
     "pyarrow>=24.0.0",
     "pydantic-settings>=2.2",
@@ -65,5 +67,9 @@ packages = ["trading_lab"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["yfinance.*", "polygon.*", "vectorbt.*", "ib_insync.*", "eventkit.*", "nest_asyncio.*"]
+module = ["yfinance.*", "polygon.*", "vectorbt.*", "ib_insync.*", "eventkit.*", "nest_asyncio.*", "apscheduler.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["telegram.*"]
 ignore_missing_imports = true
