@@ -6,9 +6,11 @@ Implementation notes
 --------------------
 - **RSI**: İlk ortalama kazanç/kayıp, ilk ``rsi_period`` günlük fiyat değişiminin ortalamasıdır;
   sonrasında Wilder RMA: ``avg_t = (avg_{t-1} * (n-1) + x_t) / n``.
-- **ATR**: True range üzerinde aynı Wilder yumuşatması; giriş çubuğundaki ATR ile stop mesafesi
-  sabitlenir (donanımcı stop). Çıkışta önce intrabar low ile stop, sonra RSI > 50 kuralı
-  uygulanır (aynı barda stop önceliklidir).
+- **ATR**: True range üzerinde aynı Wilder yumuşatması; giriş **kapanışta** sayılır, stop giriş
+  çubuğunda **kontrol edilmez** (mean reversion’da dip genelde o günün low’unda oluşur). Stop,
+  girişten sonraki çubuklarda önce ``low <= stop``, sonra ``RSI > 50`` ile denetlenir.
+- **Giriş filtresi**: Oversold yukarı kesişiminde ``RSI > 50`` ise (tek barda aşırı toparlanma)
+  pozisyon açılmaz.
 - **Long-only**: Pozisyon hedefi yalnızca ``0`` (nakit) veya ``+1`` (uzun); kısa satış yoktur.
 - **OHLCV sütunları**: Yahoo kaynaklı büyük harf başlıklar küçük harfe normalize edilir.
 """
@@ -147,13 +149,10 @@ class RSIMeanReversion(Strategy):
                     if prev_r <= oversold and r_now > oversold:
                         atr_here = atr_arr[i]
                         if not np.isnan(atr_here):
-                            stop_price = float(close[i]) - atr_stop_mult * float(atr_here)
-
-                            if float(low[i]) <= stop_price:
-                                sig_here = 0
-                            elif r_now > 50:
+                            if r_now > 50:
                                 sig_here = 0
                             else:
+                                stop_price = float(close[i]) - atr_stop_mult * float(atr_here)
                                 position = 1
                                 sig_here = 1
 

@@ -98,6 +98,7 @@ def test_rsi_invalid_params_raise(bad: dict[str, Any]) -> None:
 
 
 def test_rsi_oversold_triggers_long(rsi_oversold_scenario_ohlcv: pd.DataFrame) -> None:
+    """Oversold cross üretir; giriş çubuğunda intrabar stop iptali yapılmaz (regresyon)."""
     strat = RSIMeanReversion()
     sig = strat.generate_signals(rsi_oversold_scenario_ohlcv)
     assert (sig == 1).any()
