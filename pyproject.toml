@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trading-lab"
+version = "0.1.0"
+description = "AI-assisted trading research lab (paper trading only)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "pydantic-settings>=2.2",
+    "sqlalchemy>=2.0",
+]
+
+[project.scripts]
+trading-lab = "trading_lab.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pandas-stubs>=2.2",
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trading_lab"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+src = ["src", "tests"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["trading_lab"]
+plugins = ["pydantic.mypy"]

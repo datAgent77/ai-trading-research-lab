@@ -1,0 +1,15 @@
+"""Central store for Claude prompts (constants only in later stages)."""
+
+PROMPT_REFINE_PARAMS = ""
+PROMPT_ANALYZE_BACKTEST = ""
+PROMPT_DAILY_REPORT = ""
+PROMPT_WEEKLY_REPORT = ""
+PROMPT_REGIME_DETECTION = ""
+
+__all__ = [
+    "PROMPT_ANALYZE_BACKTEST",
+    "PROMPT_DAILY_REPORT",
+    "PROMPT_REFINE_PARAMS",
+    "PROMPT_REGIME_DETECTION",
+    "PROMPT_WEEKLY_REPORT",
+]
