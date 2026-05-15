@@ -25,6 +25,14 @@ dev = [
     "mypy>=1.10",
 ]
 
+[dependency-groups]
+dev = [
+    "pandas-stubs>=2.2",
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/trading_lab"]
 

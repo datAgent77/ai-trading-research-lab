@@ -13,9 +13,10 @@ Full rules will live in `docs/SAFETY.md` as the project grows.
 ## Quick start (after later stages)
 
 ```bash
-uv sync  # or: pip install -e ".[dev]"
+uv sync # installs the dev dependency-group (mypy, ruff, pytest, pandas-stubs)
 cp .env.example .env
-pytest
+uv run pytest
+uv run mypy src/trading_lab # avoid conda/global mypy missing deps & stubs
 ```
 
 ## Architecture
