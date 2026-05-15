@@ -41,6 +41,9 @@ def _close_series(ohlcv: pd.DataFrame) -> pd.Series:
 
 def _entries_exits_from_signals(signal: pd.Series) -> tuple[pd.Series, pd.Series]:
     """Long entries on 0->1; exits on 1->0 (targets match ``RSIMeanReversion`` outputs)."""
+    if signal.empty:
+        empty = pd.Series(False, index=signal.index, dtype=bool)
+        return empty, empty
     s = signal.astype(np.int8).to_numpy()
     prev = np.zeros_like(s, dtype=np.int8)
     prev[0] = 0
@@ -85,7 +88,17 @@ def _run_symbol_backtest(
     slippage_bps: float,
 ) -> tuple[pd.Series, pd.DataFrame, pd.Series]:
     ohlcv = fetch_bars(symbol, start, end, timeframe="1d")
+    if ohlcv.empty:
+        empty_trades = pd.DataFrame(
+            columns=["symbol", "entry_date", "exit_date", "pnl", "return_pct"],
+        )
+        return pd.Series(dtype=float), empty_trades, pd.Series(dtype=float)
     close = _close_series(ohlcv)
+    if close.empty:
+        empty_trades = pd.DataFrame(
+            columns=["symbol", "entry_date", "exit_date", "pnl", "return_pct"],
+        )
+        return pd.Series(dtype=float), empty_trades, pd.Series(dtype=float)
     sig = strategy.generate_signals(ohlcv).reindex(close.index).fillna(0).astype(np.int8)
     entries, exits = _entries_exits_from_signals(sig)
     fee = commission_bps / 10_000.0

@@ -63,3 +63,25 @@ def test_rsi_backtest_computes_metrics(monkeypatched_yfinance_ohlcv: pd.DataFram
     assert set(result.metrics.keys()) == expected_keys
     assert result.metrics["num_trades"] is not None
     assert int(result.metrics["num_trades"]) >= 0
+
+
+def test_backtest_empty_price_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _empty_fetch(
+        symbol: str,
+        start: str,
+        end: str,
+        timeframe: str = "1d",
+    ) -> pd.DataFrame:
+        del symbol, start, end, timeframe
+        return pd.DataFrame()
+
+    monkeypatch.setattr("trading_lab.backtest.engine.fetch_bars", _empty_fetch)
+    result = backtest(
+        RSIMeanReversion(),
+        symbols=["SYN"],
+        start="2025-01-01",
+        end="2025-01-05",
+        persist=False,
+    )
+    assert result.equity_curve.empty
+    assert result.trades.empty
