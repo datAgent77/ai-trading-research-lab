@@ -9,6 +9,8 @@ import pandas as pd
 import pytest
 
 from trading_lab.strategies.base import Strategy
+from trading_lab.strategies.bbands_squeeze import BBandsSqueeze
+from trading_lab.strategies.donchian_breakout import DonchianBreakout
 from trading_lab.strategies.rsi_mean_reversion import RSIMeanReversion
 
 
@@ -114,3 +116,87 @@ def test_rsi_signal_values_long_only(rsi_oversold_scenario_ohlcv: pd.DataFrame) 
     strat = RSIMeanReversion()
     sig = strat.generate_signals(rsi_oversold_scenario_ohlcv)
     assert set(sig.unique().tolist()).issubset({0, 1})
+
+
+@pytest.fixture
+def donchian_break_then_drop_ohlcv() -> pd.DataFrame:
+    """Flat tape → upper breakout → hold → sharp breakdown exits Donchian channel."""
+    n = 45
+    idx = pd.date_range("2024-01-01", periods=n, freq="D", tz="UTC")
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.0)
+    low = np.full(n, 99.5)
+    burst = 25
+    high[burst:] = 106.0
+    close[burst:] = 106.0
+    low[burst:] = 105.5
+    crash = 38
+    high[crash] = 96.0
+    low[crash] = 92.0
+    close[crash] = 93.0
+    return pd.DataFrame(
+        {"Open": close, "High": high, "Low": low, "Close": close},
+        index=idx,
+    )
+
+
+def test_donchian_invalid_params_raise() -> None:
+    with pytest.raises(ValueError, match="entry_period"):
+        DonchianBreakout(params={"entry_period": 1})
+
+
+def test_donchian_breakout_enters_and_exits(donchian_break_then_drop_ohlcv: pd.DataFrame) -> None:
+    strat = DonchianBreakout(params={"entry_period": 10, "exit_period": 5})
+    sig = strat.generate_signals(donchian_break_then_drop_ohlcv)
+    assert set(sig.unique().tolist()).issubset({0, 1})
+    assert (sig == 1).any()
+    assert (sig == 0).sum() >= 1
+
+
+def test_donchian_deterministic(donchian_break_then_drop_ohlcv: pd.DataFrame) -> None:
+    s1 = DonchianBreakout(params={"entry_period": 10, "exit_period": 5}).generate_signals(
+        donchian_break_then_drop_ohlcv,
+    )
+    s2 = DonchianBreakout(params={"entry_period": 10, "exit_period": 5}).generate_signals(
+        donchian_break_then_drop_ohlcv,
+    )
+    pd.testing.assert_series_equal(s1, s2)
+
+
+@pytest.fixture
+def bbands_quiet_then_pop_ohlcv() -> pd.DataFrame:
+    """Quiet highs/lows around 100 then bullish expansion."""
+    n = 80
+    idx = pd.date_range("2022-06-01", periods=n, freq="D", tz="UTC")
+    rng = np.random.default_rng(7)
+    base = 100.0 + rng.uniform(-0.15, 0.15, size=n).cumsum() * 0.05
+    close = base.copy()
+    high = close + rng.uniform(0.05, 0.25, size=n)
+    low = close - rng.uniform(0.05, 0.25, size=n)
+    close[-15:] = close[-15] + np.linspace(0.0, 4.5, 15)
+    high[-15:] = np.maximum(high[-15:], close[-15:] + 0.05)
+    low[-15:] = np.minimum(low[-15:], close[-15:] - 0.05)
+    open_px = np.roll(close, 1)
+    open_px[0] = close[0]
+    return pd.DataFrame(
+        {"Open": open_px, "High": high, "Low": low, "Close": close},
+        index=idx,
+    )
+
+
+def test_bbands_invalid_params_raise() -> None:
+    with pytest.raises(ValueError, match="bb_std"):
+        BBandsSqueeze(params={"bb_std": 0.0})
+
+
+def test_bbands_squeeze_long_only_signal_domain(bbands_quiet_then_pop_ohlcv: pd.DataFrame) -> None:
+    strat = BBandsSqueeze(params={"bb_period": 15, "squeeze_pct": 0.95})
+    sig = strat.generate_signals(bbands_quiet_then_pop_ohlcv)
+    assert set(sig.unique().tolist()).issubset({0, 1})
+
+
+def test_bbands_deterministic(bbands_quiet_then_pop_ohlcv: pd.DataFrame) -> None:
+    p = {"bb_period": 15, "squeeze_pct": 0.95}
+    s1 = BBandsSqueeze(params=p).generate_signals(bbands_quiet_then_pop_ohlcv)
+    s2 = BBandsSqueeze(params=p).generate_signals(bbands_quiet_then_pop_ohlcv)
+    pd.testing.assert_series_equal(s1, s2)

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-20250514"
     telegram_bot_token: str = ""
     telegram_allowed_user_ids: str = ""
 
