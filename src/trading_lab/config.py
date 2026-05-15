@@ -30,6 +30,7 @@ class Settings(BaseSettings):
             "(defaults to IBKR_CLIENT_ID + 1)"
         ),
     )
+    telegram_report_chat_ids: str = ""
 
     ibkr_host: str = "127.0.0.1"
     ibkr_port: int = 7497
@@ -45,6 +46,11 @@ class Settings(BaseSettings):
     data_cache_dir: str = Field(default=DEFAULT_DATA_CACHE_DIR)
 
     database_url: str = "sqlite:///./trading_lab.db"
+
+    reports_schedule_enabled: bool = True
+    report_timezone: str = "America/New_York"
+    report_daily_crontab: str = "5 17 * * mon-fri"
+    report_weekly_crontab: str = "35 17 * * fri"
 
     @field_validator("ibkr_port")
     @classmethod
@@ -77,6 +83,13 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [int(part.strip()) for part in raw.split(",") if part.strip()]
+
+    def telegram_report_recipient_ids(self) -> list[int]:
+        """Recipients for scheduled reports (explicit chats else whitelist fall-through)."""
+        raw = self.telegram_report_chat_ids.strip()
+        if raw:
+            return [int(part.strip()) for part in raw.split(",") if part.strip()]
+        return self.telegram_user_id_list()
 
 
 def get_settings() -> Settings:

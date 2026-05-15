@@ -18,6 +18,11 @@ from trading_lab.backtest.walk_forward import walk_forward
 from trading_lab.claude.client import ClaudeClient
 from trading_lab.claude.refine import refinement_walk_forward
 from trading_lab.claude.report import daily_report_markdown, weekly_report_markdown
+from trading_lab.claude.report_context import (
+    build_daily_report_context,
+    build_weekly_report_context,
+    merge_overlay,
+)
 from trading_lab.config import Settings
 from trading_lab.db.models import Order, StrategyRun, StrategyRunStatus
 from trading_lab.db.session import managed_session
@@ -475,13 +480,15 @@ async def cmd_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not settings.anthropic_api_key.strip():
         await update.effective_chat.send_message("Set ANTHROPIC_API_KEY in `.env` first.")
         return
-    payload = {
-        "period": mode,
-        "source": "telegram_on_demand",
-        "note": "Structured ledger aggregation can be wired in Stage 10 scheduler.",
-    }
+    factory = _session_factory(context)
 
     def work() -> str:
+        with managed_session(factory) as session:
+            if mode == "today":
+                payload = build_daily_report_context(session)
+            else:
+                payload = build_weekly_report_context(session)
+            payload = merge_overlay(payload, {"source": "telegram_on_demand"})
         client = ClaudeClient.from_settings(settings)
         if mode == "today":
             return daily_report_markdown(payload, client=client)
