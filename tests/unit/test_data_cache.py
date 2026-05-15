@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from trading_lab.config import DEFAULT_DATA_CACHE_DIR
 from trading_lab.data.cache import (
     atomic_write_parquet,
     compute_missing_segments,
@@ -33,6 +34,12 @@ def test_resolve_cache_dir_env_beats_settings(
 ) -> None:
     monkeypatch.setenv("DATA_CACHE_DIR", str(tmp_path))
     assert resolve_cache_directory(None) == Path(tmp_path)
+
+
+def test_resolve_cache_default_skips_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: data smoke scripts must not require ``Settings`` / IBKR env."""
+    monkeypatch.delenv("DATA_CACHE_DIR", raising=False)
+    assert resolve_cache_directory(None) == Path(DEFAULT_DATA_CACHE_DIR)
 
 
 def test_provider_cache_path_layout(tmp_path: Path) -> None:

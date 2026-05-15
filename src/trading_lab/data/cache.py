@@ -24,15 +24,19 @@ def provider_cache_path(cache_root: Path, provider: Provider, symbol: str, timef
 
 
 def resolve_cache_directory(cache_dir: os.PathLike[str] | str | None) -> Path:
-    """Resolve cache root: explicit arg, then ``DATA_CACHE_DIR``, else settings."""
+    """Resolve cache root: explicit arg, ``DATA_CACHE_DIR`` env, else project default.
+
+    Does not load full :class:`~trading_lab.config.Settings`, so data helpers work without
+    IBKR variables (e.g. ad-hoc ``fetch_bars`` smoke tests).
+    """
     if cache_dir is not None:
         return Path(cache_dir)
     env_dir = os.getenv("DATA_CACHE_DIR")
     if env_dir:
         return Path(env_dir)
-    from trading_lab.config import get_settings
+    from trading_lab.config import DEFAULT_DATA_CACHE_DIR
 
-    return Path(get_settings().data_cache_dir)
+    return Path(DEFAULT_DATA_CACHE_DIR)
 
 
 def ensure_parent_dir(path: Path) -> None:

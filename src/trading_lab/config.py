@@ -7,6 +7,8 @@ from decimal import Decimal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_DATA_CACHE_DIR = "./data/cache"
+
 
 class Settings(BaseSettings):
     """Runtime settings. IBKR paper-only rules are enforced here."""
@@ -32,7 +34,7 @@ class Settings(BaseSettings):
     trading_end_ny: str = "16:00"
 
     polygon_api_key: str = ""
-    data_cache_dir: str = "./data/cache"
+    data_cache_dir: str = Field(default=DEFAULT_DATA_CACHE_DIR)
 
     database_url: str = "sqlite:///./trading_lab.db"
 
