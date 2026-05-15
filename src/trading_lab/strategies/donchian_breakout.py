@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -13,9 +13,10 @@ class DonchianBreakoutStrategy(Strategy):
     """Donchian channel breakout (not implemented yet)."""
 
     name = "donchian_breakout"
+    default_params: ClassVar[dict[str, Any]] = {}
 
-    def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+    def validate_params(self) -> None:
+        """Deferred until Stage 5."""
 
     def generate_signals(self, ohlcv: pd.DataFrame) -> pd.Series:
         """Raise until Stage 5 implements logic."""

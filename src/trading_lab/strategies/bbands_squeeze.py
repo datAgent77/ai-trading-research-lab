@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -13,9 +13,10 @@ class BBandsSqueezeStrategy(Strategy):
     """Volatility squeeze breakout using Bollinger and Keltner (not implemented yet)."""
 
     name = "bbands_squeeze"
+    default_params: ClassVar[dict[str, Any]] = {}
 
-    def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+    def validate_params(self) -> None:
+        """Deferred until Stage 5."""
 
     def generate_signals(self, ohlcv: pd.DataFrame) -> pd.Series:
         """Raise until Stage 5 implements logic."""
