@@ -87,7 +87,33 @@ def test_tick_places_buy_after_second_signal(risk_bundle: RiskEngine) -> None:
     assert fake.placed[0][1].action == "BUY"
 
 
-def test_tick_places_sell_when_flattening(risk_bundle: RiskEngine) -> None:
+def test_dry_run_invokes_telegram_notifier(risk_bundle: RiskEngine) -> None:
+    fake = RecordingFakeIB()
+    ibkr = IBKRClient(
+        host="127.0.0.1",
+        port=7497,
+        client_id=1,
+        account_id="DU1234567",
+        ib=fake,
+        connect=False,
+    )
+    strat = CountStrategy()
+    messages: list[str] = []
+    loop = LiveLoop(
+        ibkr=ibkr,
+        risk=risk_bundle,
+        bindings=[LiveBinding(strategy_run_id=5, strategy=strat, symbol="SPY")],
+        bars_fetcher=_bars,
+        dry_run=True,
+        telegram_notifier=messages.append,
+    )
+    now = _ny_monday_open_utc()
+    loop.tick_once(now_utc=now)
+    assert messages == []
+    loop.tick_once(now_utc=now)
+    assert len(messages) == 1
+    assert "[DRY_RUN]" in messages[0]
+    assert fake.placed == []
     fake = RecordingFakeIB()
     fake.seed_positions([make_position(symbol="SPY", qty=Decimal("10"), avg_cost=Decimal("100"))])
     ibkr = IBKRClient(

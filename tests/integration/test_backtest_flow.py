@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from trading_lab.backtest.engine import backtest
+from trading_lab.data.bars import BarsFetcher
 from trading_lab.strategies.rsi_mean_reversion import RSIMeanReversion
 
 
 @pytest.fixture
-def monkeypatched_yfinance_ohlcv(monkeypatch: pytest.MonkeyPatch) -> pd.DataFrame:
+def synthetic_bars_and_fetcher() -> tuple[pd.DataFrame, BarsFetcher]:
     idx = pd.date_range("2020-01-01", periods=120, freq="D", tz="UTC")
     rng = np.random.default_rng(7)
     close = np.concatenate([np.linspace(100.0, 62.0, 55), np.linspace(62.0, 105.0, 65)])
@@ -30,20 +33,24 @@ def monkeypatched_yfinance_ohlcv(monkeypatch: pytest.MonkeyPatch) -> pd.DataFram
         del symbol, start, end, timeframe
         return frame.copy()
 
-    monkeypatch.setattr("trading_lab.backtest.engine.fetch_bars", _fake_fetch)
-    return frame
+    return frame, _fake_fetch
 
 
-def test_rsi_backtest_computes_metrics(monkeypatched_yfinance_ohlcv: pd.DataFrame) -> None:
-    assert len(monkeypatched_yfinance_ohlcv) == 120
+def test_rsi_backtest_computes_metrics(
+    synthetic_bars_and_fetcher: tuple[pd.DataFrame, BarsFetcher],
+) -> None:
+    frame, fetch = synthetic_bars_and_fetcher
+    assert len(frame) == 120
     result = backtest(
         RSIMeanReversion(),
         symbols=["SYN"],
         start="2020-01-01",
         end="2020-12-31",
         persist=False,
+        bars_fetcher=fetch,
     )
     assert len(result.equity_curve) > 0
+    assert result.meta.get("data_provider") == "yfinance"
     expected_keys = {
         "sharpe",
         "sortino",
@@ -65,7 +72,7 @@ def test_rsi_backtest_computes_metrics(monkeypatched_yfinance_ohlcv: pd.DataFram
     assert int(result.metrics["num_trades"]) >= 0
 
 
-def test_backtest_empty_price_window(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_backtest_empty_price_window() -> None:
     def _empty_fetch(
         symbol: str,
         start: str,
@@ -75,13 +82,13 @@ def test_backtest_empty_price_window(monkeypatch: pytest.MonkeyPatch) -> None:
         del symbol, start, end, timeframe
         return pd.DataFrame()
 
-    monkeypatch.setattr("trading_lab.backtest.engine.fetch_bars", _empty_fetch)
     result = backtest(
         RSIMeanReversion(),
         symbols=["SYN"],
         start="2025-01-01",
         end="2025-01-05",
         persist=False,
+        bars_fetcher=cast(BarsFetcher, _empty_fetch),
     )
     assert result.equity_curve.empty
     assert result.trades.empty

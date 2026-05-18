@@ -29,7 +29,7 @@ from trading_lab.strategies.base import Strategy
 
 logger = logging.getLogger(__name__)
 
-BarsFetcher = Callable[[str, str, str], pd.DataFrame]
+BarsFetcher = Callable[..., pd.DataFrame]
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,7 @@ class LiveLoop:
         dry_run: bool = False,
         recent_keys: set[tuple[int, str, str]] | None = None,
         kill_switch_session_factory: sessionmaker[Session] | None = None,
+        telegram_notifier: Callable[[str], None] | None = None,
     ) -> None:
         self._ibkr = ibkr
         self._risk = risk
@@ -66,6 +67,7 @@ class LiveLoop:
         self._recent_keys = rk
         self._prev_targets: dict[tuple[int, str], int] = {}
         self._kill_switch_session_factory = kill_switch_session_factory
+        self._telegram_notifier = telegram_notifier
 
     def prime_previous_signal(self, strategy_run_id: int, symbol: str, target: int) -> None:
         """Hydrate remembered targets (tests + controlled restarts)."""
@@ -198,6 +200,11 @@ class LiveLoop:
         if intent is None:
             return
 
+        base_msg = (
+            f"live intent run={intent.strategy_run_id} {binding.strategy.name} {sym_u}\n"
+            f"{intent.side.value} qty={intent.quantity} ref={intent.reference_price}"
+        )
+
         if self._dry_run:
             logger.info(
                 "live_dry_run_order run_id=%s symbol=%s side=%s qty=%s ref=%s",
@@ -207,6 +214,7 @@ class LiveLoop:
                 intent.quantity,
                 intent.reference_price,
             )
+            self._maybe_telegram(f"{base_msg}\n[DRY_RUN]")
             return
 
         try:
@@ -217,30 +225,52 @@ class LiveLoop:
                 recent_keys=self._recent_keys,
                 now_utc=now_utc,
             )
+            oid = getattr(trade.order, "orderId", None)
             logger.info(
                 "live_order_submitted run_id=%s symbol=%s order_id=%s",
                 binding.strategy_run_id,
                 sym_u,
-                getattr(trade.order, "orderId", None),
+                oid,
             )
-        except (
-            DuplicateOrderKeyError,
-            KillSwitchTrippedError,
-            TradingHoursError,
-            PositionCapExceededError,
-        ) as exc:
+            self._maybe_telegram(f"{base_msg}\nsubmitted order_id={oid}")
+        except DuplicateOrderKeyError as exc:
             logger.warning(
                 "live_order_blocked run_id=%s symbol=%s reason=%s",
                 binding.strategy_run_id,
                 sym_u,
                 exc,
             )
+        except TradingHoursError as exc:
+            logger.warning(
+                "live_order_blocked run_id=%s symbol=%s reason=%s",
+                binding.strategy_run_id,
+                sym_u,
+                exc,
+            )
+        except (KillSwitchTrippedError, PositionCapExceededError) as exc:
+            logger.warning(
+                "live_order_blocked run_id=%s symbol=%s reason=%s",
+                binding.strategy_run_id,
+                sym_u,
+                exc,
+            )
+            self._maybe_telegram(f"{base_msg}\nblocked {type(exc).__name__}: {exc}")
         except Exception:
             logger.exception(
                 "live_order_submit_failed run_id=%s symbol=%s",
                 binding.strategy_run_id,
                 sym_u,
             )
+            self._maybe_telegram(f"{base_msg}\nerror: submit failed (see logs)")
+
+    def _maybe_telegram(self, text: str) -> None:
+        fn = self._telegram_notifier
+        if fn is None:
+            return
+        try:
+            fn(text)
+        except Exception:
+            logger.exception("telegram_live_notify_failed")
 
 
 def _bar_timestamp_utc(idx_val: object) -> datetime:

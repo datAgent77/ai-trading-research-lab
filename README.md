@@ -4,7 +4,7 @@
 
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org)
 [![Type Checked: mypy strict](https://img.shields.io/badge/mypy-strict-success)](http://mypy-lang.org/)
-[![Tests: 91 passing](https://img.shields.io/badge/tests-91%20passing-success)](#testing)
+[![Tests](https://img.shields.io/badge/tests-102%20passing-success)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Paper Trading Only](https://img.shields.io/badge/trading-paper%20only-orange)](#safety)
 
@@ -109,7 +109,7 @@ Trading systems that touch live brokerage accounts must be **structurally** safe
 | Guarantee | Enforcement |
 |---|---|
 | Paper account only | Config rejects IBKR port `7496` (live TWS) at validation time, before client construction. |
-| Verified account ID | Config rejects account IDs that don't start with `D` (IBKR's paper-account prefix). |
+| Verified paper account | When `IBKR_ACCOUNT` is set, it must start with `D`. Empty is allowed for **backtests-only**; paper trading and Telegram IBKR reads require `DU…` (`paper_ibkr_account_id_required()`). |
 | Position sizing cap | Order manager rejects any single order > 5% of paper NAV. |
 | Daily drawdown kill switch | If realized + unrealized PnL drops below threshold, all open orders cancel and new entries halt until manually reset via Telegram `/reset_killswitch`. |
 | Trading hours guard | Orders outside US regular hours are rejected at validation. |
@@ -120,7 +120,7 @@ These are not documentation promises — they are **code paths verified by tests
 
 ```bash
 # Verify the live-port guard:
-$ IBKR_PORT=7496 uv run python -c "from trading_lab.config import Settings; Settings()"
+$ IBKR_PORT=7496 IBKR_ACCOUNT=DU1234567 uv run python -c "from trading_lab.config import Settings; Settings()"
 ValidationError: IBKR_PORT 7496 is the live TWS port and is blocked by policy
 ```
 
@@ -132,17 +132,18 @@ Requires Python 3.13 and [`uv`](https://github.com/astral-sh/uv).
 
 ```bash
 # 1. Clone and enter
-git clone https://github.com/datAgent77/ai-trading-research-lab.git
-cd ai-trading-research-lab
+git clone <your-repo-url>
+cd trading-lab
 
 # 2. Install dependencies
 uv sync
 
 # 3. Copy environment template
 cp .env.example .env
-# Edit .env: add ANTHROPIC_API_KEY, IBKR_ACCOUNT (must start with D), TELEGRAM_BOT_TOKEN
+# Edit .env: ANTHROPIC_API_KEY (reports/refine), TELEGRAM_* if using the bot,
+# IBKR_* for paper execution / Telegram broker reads (optional for backtests-only).
 
-# 4. Run a backtest
+# 4. Run a backtest (works without IBKR_ACCOUNT)
 uv run python scripts/run_backtest.py donchian SPY --start 2020-01-01 --end 2024-12-31
 
 # 5. Run walk-forward optimization
@@ -152,7 +153,20 @@ uv run python scripts/run_walk_forward.py rsi SPY --start 2018-01-01 --end 2024-
 uv run pytest -v
 ```
 
-For paper trading and Telegram bot setup, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/SAFETY.md](docs/SAFETY.md).
+For paper trading, Telegram, scheduled reports, full architecture and safety detail, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/SAFETY.md](docs/SAFETY.md), and [docs/STRATEGIES.md](docs/STRATEGIES.md). Demo asset placeholders: [docs/demo/README.md](docs/demo/README.md).
+
+---
+
+## Docker
+
+Requires [Docker](https://docs.docker.com/get-docker/) and a `.env` file in the project root (Compose refuses to start if `env_file` is missing — run `cp .env.example .env` or `touch .env` first).
+
+```bash
+docker compose build
+docker compose run --rm app python scripts/run_backtest.py donchian SPY --start 2020-01-01 --end 2024-12-31
+```
+
+The default service command prints `run_backtest.py --help`. Override the command as needed. Running **TWS/IBKR Gateway** against `host.docker.internal` is platform-specific — for paper trading and the Telegram bot, running scripts **on the host** with `uv` is usually simpler.
 
 ---
 
@@ -197,7 +211,7 @@ Each strategy validates its parameters at instantiation, returns a deterministic
 | Telegram | `python-telegram-bot` v20+ | Async API |
 | Scheduler | `APScheduler` | Async-native jobs |
 | Validation | `pydantic-settings` | Refuses unsafe configurations at startup |
-| Tests | `pytest` | 91 tests, deterministic |
+| Tests | `pytest` | 102 tests (see CI / local run) |
 | Type check | `mypy --strict` | No untyped public functions |
 | Lint/format | `ruff` | Single-tool replacement for flake8 + isort + black |
 
@@ -207,26 +221,33 @@ Each strategy validates its parameters at instantiation, returns a deterministic
 
 ```
 src/trading_lab/
-├── config.py              # pydantic-settings; refuses live ports
+├── config.py              # pydantic-settings; refuses live ports; optional IBKR for backtests
 ├── logging_setup.py       # structlog JSON
-├── data/                  # yfinance + polygon adapters + parquet cache
+├── data/                  # yfinance + polygon + bars_fetcher + parquet cache
 ├── strategies/            # Strategy base + 3 implementations
-├── backtest/              # engine, 11 metrics, walk-forward
+├── backtest/              # vectorbt engine, metrics, walk-forward
 ├── claude/                # client, prompts, refinement, reports, regime detection
 ├── execution/             # IBKR client, order manager, risk engine, kill switch
-├── runner/                # async live loop + scheduler
-├── telegram_bot/          # bot + handlers
-└── db/                    # SQLAlchemy models + alembic migrations
+├── runner/                # live loop, APScheduler hooks, scheduled report jobs
+├── telegram_bot/          # bot, handlers, notify (HTTP)
+└── db/                    # SQLAlchemy models + migrations
+
+docs/
+├── ARCHITECTURE.md
+├── SAFETY.md
+├── STRATEGIES.md
+└── demo/README.md         # optional screenshots / GIFs
 
 tests/
-├── unit/                  # 88 unit tests
-└── integration/           # backtest flow integration test
+├── unit/
+└── integration/
 
 scripts/
-├── run_backtest.py        # CLI: backtest a strategy
-├── run_walk_forward.py    # CLI: walk-forward optimization
-├── run_paper_trading.py   # CLI: start paper trading loop
-└── run_telegram_bot.py    # CLI: start Telegram bot
+├── run_backtest.py
+├── run_walk_forward.py
+├── run_paper_trading.py
+├── run_telegram_bot.py
+└── run_scheduled_reports.py
 ```
 
 ---
@@ -234,13 +255,14 @@ scripts/
 ## Testing
 
 ```bash
-uv run pytest -v          # 91 tests across unit + integration
-uv run ruff check .       # zero violations
-uv run mypy --strict src/ # zero type errors
+uv run pytest -v          # unit + integration (~102 tests)
+uv run ruff check src tests scripts
+uv run mypy src/trading_lab
 ```
 
 Key invariants verified by tests:
-- Config rejects live ports and non-paper account IDs.
+- Config rejects live ports; non-paper account IDs when `IBKR_ACCOUNT` is set.
+- Empty `IBKR_ACCOUNT` allowed for offline backtests; broker scripts require paper id.
 - Strategies produce deterministic signals; same input → same output.
 - Backtest metrics are deterministic and handle 0-trade cases.
 - Walk-forward windows are computed correctly and disjoint.

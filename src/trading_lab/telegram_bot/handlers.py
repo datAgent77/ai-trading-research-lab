@@ -84,6 +84,28 @@ def ibkr_connect(settings: Settings) -> IBKRClient:
     )
 
 
+def _run_ibkr_sync_in_thread(callable_: Callable[..., str], /, *args: Any) -> str:
+    """Run ``ib_insync`` sync helpers from ``asyncio.to_thread`` (needs a loop per thread)."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return callable_(*args)
+    finally:
+        try:
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:
+            logger.debug("ibkr_thread_loop_cleanup_failed", exc_info=True)
+        asyncio.set_event_loop(None)
+        try:
+            loop.close()
+        except Exception:
+            logger.debug("ibkr_thread_loop_close_failed", exc_info=True)
+
+
 def ibkr_status_lines(settings: Settings) -> str:
     ibkr = ibkr_connect(settings)
     try:
@@ -261,7 +283,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         order_line = latest_order_summary(session)
     ks = f"kill_switch={'TRIPPED' if tripped else 'ok'} reason={reason or '-'}"
     try:
-        broker = await asyncio.to_thread(ibkr_status_lines, settings)
+        broker = await asyncio.to_thread(_run_ibkr_sync_in_thread, ibkr_status_lines, settings)
     except Exception as exc:
         logger.warning("telegram_status_ibkr_failed exc=%s", exc)
         broker = f"IBKR unavailable: {exc}"
@@ -273,7 +295,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     assert update.effective_chat is not None
     settings = _settings(context)
     try:
-        body = await asyncio.to_thread(ibkr_positions_lines, settings)
+        body = await asyncio.to_thread(_run_ibkr_sync_in_thread, ibkr_positions_lines, settings)
     except Exception as exc:
         body = f"IBKR unavailable: {exc}"
     await update.effective_chat.send_message(body)
@@ -291,7 +313,7 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     settings = _settings(context)
     try:
-        body = await asyncio.to_thread(ibkr_pnl_lines, settings, span)
+        body = await asyncio.to_thread(_run_ibkr_sync_in_thread, ibkr_pnl_lines, settings, span)
     except Exception as exc:
         body = f"IBKR unavailable: {exc}"
     await update.effective_chat.send_message(body)

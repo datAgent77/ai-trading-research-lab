@@ -1,7 +1,17 @@
+# Trading lab — Docker Compose (Stage 11).
+#
+#   cp .env.example .env   # edit secrets; IBKR_ACCOUNT optional for backtests-only
+#
+#   docker compose build
+#   docker compose run --rm app python scripts/run_backtest.py rsi SPY --start 2020-01-01 --end 2024-12-31
+#
+# Paper trading / Telegram usually run on the host (TWS/Gateway on localhost, simpler networking).
+
 services:
   app:
     build: .
     env_file: .env
     volumes:
       - ./data:/app/data
-    command: ["sleep", "infinity"]
+    working_dir: /app
+    command: ["python", "scripts/run_backtest.py", "--help"]

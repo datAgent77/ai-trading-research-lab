@@ -30,3 +30,37 @@ def test_settings_accepts_paper_port_and_account(monkeypatch: pytest.MonkeyPatch
     settings = Settings()
     assert settings.ibkr_port == 7497
     assert settings.ibkr_account == "DU1234567"
+
+
+def test_settings_allows_empty_ibkr_account_for_backtests(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_PORT", "7497")
+    monkeypatch.delenv("IBKR_ACCOUNT", raising=False)
+    monkeypatch.setenv("IBKR_ACCOUNT", "")
+    settings = Settings()
+    assert settings.ibkr_account == ""
+
+
+def test_paper_ibkr_account_id_required_raises_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_PORT", "7497")
+    monkeypatch.setenv("IBKR_ACCOUNT", "")
+    settings = Settings()
+    with pytest.raises(ValueError, match="IBKR_ACCOUNT"):
+        settings.paper_ibkr_account_id_required()
+
+
+def test_settings_empty_telegram_ibkr_client_id_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_PORT", "7497")
+    monkeypatch.setenv("IBKR_ACCOUNT", "DU1234567")
+    monkeypatch.setenv("TELEGRAM_IBKR_CLIENT_ID", "")
+    settings = Settings()
+    assert settings.telegram_ibkr_client_id is None
+
+
+def test_settings_polygon_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_PORT", "7497")
+    monkeypatch.setenv("IBKR_ACCOUNT", "DU1234567")
+    monkeypatch.setenv("DATA_PROVIDER", "polygon")
+    monkeypatch.delenv("POLYGON_API_KEY", raising=False)
+    with pytest.raises(ValidationError) as exc:
+        Settings()
+    assert "POLYGON_API_KEY" in str(exc.value)

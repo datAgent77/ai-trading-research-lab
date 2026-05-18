@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from trading_lab.backtest.metrics import compute_metrics
 from trading_lab.config import get_settings
-from trading_lab.data.yfinance_source import fetch_bars
+from trading_lab.data.bars import BarsFetcher, bars_fetcher_for_settings
 from trading_lab.db.models import BacktestResult as BacktestResultORM
 from trading_lab.db.models import Base as DbBase
 from trading_lab.strategies.base import Strategy
@@ -86,8 +86,10 @@ def _run_symbol_backtest(
     cash: float,
     commission_bps: float,
     slippage_bps: float,
+    *,
+    fetch_fn: BarsFetcher,
 ) -> tuple[pd.Series, pd.DataFrame, pd.Series]:
-    ohlcv = fetch_bars(symbol, start, end, timeframe="1d")
+    ohlcv = fetch_fn(symbol, start, end, timeframe="1d")
     if ohlcv.empty:
         empty_trades = pd.DataFrame(
             columns=["symbol", "entry_date", "exit_date", "pnl", "return_pct"],
@@ -139,11 +141,14 @@ def backtest(
     slippage_bps: float = 2.0,
     *,
     persist: bool = False,
+    bars_fetcher: BarsFetcher | None = None,
 ) -> BacktestResult:
     """Run daily long-only signal backtests per symbol and aggregate equal-weight equity."""
     if not symbols:
         msg = "symbols must be non-empty"
         raise ValueError(msg)
+    settings = get_settings()
+    fetch_fn = bars_fetcher if bars_fetcher is not None else bars_fetcher_for_settings(settings)
     n = len(symbols)
     cash_each = float(initial_cash) / n
 
@@ -160,6 +165,7 @@ def backtest(
             cash_each,
             commission_bps,
             slippage_bps,
+            fetch_fn=fetch_fn,
         )
         equities.append(eq)
         benchmarks.append(bh)
@@ -180,6 +186,7 @@ def backtest(
         "commission_bps": commission_bps,
         "slippage_bps": slippage_bps,
         "initial_cash": initial_cash,
+        "data_provider": settings.data_provider,
     }
 
     params_out = dict(strategy.params)

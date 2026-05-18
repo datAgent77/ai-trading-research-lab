@@ -9,6 +9,7 @@ import typer
 from pydantic import ValidationError
 
 from trading_lab.config import Settings, get_settings
+from trading_lab.data.bars import bars_fetcher_for_settings
 from trading_lab.db.session import create_session_factory, ensure_schema
 from trading_lab.execution.ibkr_client import IBKRClient
 from trading_lab.execution.risk import KillSwitchState, RiskEngine
@@ -22,6 +23,7 @@ from trading_lab.runner.scheduler import (
 from trading_lab.strategies.bbands_squeeze import BBandsSqueeze
 from trading_lab.strategies.donchian_breakout import DonchianBreakout
 from trading_lab.strategies.rsi_mean_reversion import RSIMeanReversion
+from trading_lab.telegram_bot.notify import telegram_notifier_from_settings
 
 STRATEGIES = {
     "rsi": RSIMeanReversion,
@@ -60,8 +62,10 @@ async def _run_async(
         ibkr=ibkr,
         risk=risk,
         bindings=bindings,
+        bars_fetcher=bars_fetcher_for_settings(settings),
         dry_run=dry_run,
         kill_switch_session_factory=kill_sw_factory,
+        telegram_notifier=telegram_notifier_from_settings(settings),
     )
 
     scheduler = build_async_scheduler()
@@ -100,6 +104,7 @@ def main(
 
     try:
         settings = get_settings()
+        settings.paper_ibkr_account_id_required()
     except ValidationError as exc:
         typer.secho(
             "Configuration error — check `.env` (see `.env.example`).",
@@ -113,6 +118,9 @@ def main(
             "Paper trading requires IBKR_ACCOUNT (id starting with D), e.g. IBKR_ACCOUNT=DU1234567",
             err=True,
         )
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
     asyncio.run(
